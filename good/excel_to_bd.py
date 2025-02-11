@@ -72,16 +72,18 @@ def excel_to_bd_main():
     db_manager.test_connection()
 
     # Путь к Excel-файлу
-    excel_file_path = 'FinalTableDatabase.xlsx'
-
+    excel_file_path = ['FinalTableDatabase1.xlsx', 'Lengths.xlsx']
+    table_names = ['experiment_full_table', 'lengths']
+    
     # Читаем данные из Excel
-    df = db_manager.read_excel(excel_file_path)
+    for i in range(2):
+        
+        df = db_manager.read_excel(excel_file_path[i])
 
-    # Имя таблицы в PostgreSQL
-    table_name = 'experiment_full_table'
+        table_name = table_names[i]
 
     # Записываем данные в базу данных
-    db_manager.write_to_db(table_name, df, if_exists='replace')
+        db_manager.write_to_db(table_name, df, if_exists='replace')
 
     # Закрываем подключение к базе данных
-    db_manager.close()
+        db_manager.close()
