@@ -3,9 +3,7 @@ import os
 
 
 def de_dt_materials_main():
-    
     config_path = 'config_to_connection.json'
-    
     config = load_config(config_path)
 
     # Создаем подключение через psycopg2
@@ -33,61 +31,64 @@ def de_dt_materials_main():
         # Создаем словарь для хранения Tension для каждого материала
         tension_dict = {row[0]: row[5] for row in table1_data}
 
-        # Создаем список для хранения результатов
-        results = []
+        # Создаем словарь для группировки данных по Temperature и Orientation
+        grouped_data = {}
 
         # Обрабатываем данные для каждого материала
-        for material, (beginning, end) in time_intervals.items():
-            # Фильтруем данные по материалу и временному интервалу
-            filtered_data = [
-                row for row in table1_data
-                if row[0] == material and beginning <= row[3] <= end
-            ]
+        for row in table1_data:
+            material, temperature, orientation, time_lapse, deformation, tension = row
 
-            if not filtered_data:
-                continue  # Пропускаем, если нет данных в интервале
+            # Фильтруем данные по временному интервалу
+            if material in time_intervals:
+                beginning, end = time_intervals[material]
+                if beginning <= time_lapse <= end:
+                    key = (temperature, orientation)
 
-            # Находим начальную и конечную деформацию
-            deformation_start = filtered_data[0][4]
-            deformation_end = filtered_data[-1][4]
+                    if key not in grouped_data:
+                        grouped_data[key] = []
 
-            # Вычисляем dE_dt
-            time_interval = end - beginning
-            dE_dt = (deformation_end - deformation_start) / time_interval if time_interval != 0 else 0.0
+                    # Добавляем данные, если материал еще не был добавлен
+                    if not any(item[0] == material for item in grouped_data[key]):
+                        grouped_data[key].append((
+                            material,
+                            temperature,
+                            orientation,
+                            time_lapse,
+                            deformation,
+                            tension
+                        ))
 
-            # Добавляем результат
-            results.append((
-                material,
-                filtered_data[0][1],  # Temperature
-                filtered_data[0][2],  # Orientation
-                dE_dt,
-                tension_dict[material]  # Tension
-            ))
+        # Создаем таблицы для каждой группы
+        for (temperature, orientation), rows in grouped_data.items():
+            # Название таблицы формируем на основе Temperature и Orientation
+            table_name = f"temp_{temperature}_orient_{orientation}"
 
-        # Создаем новую таблицу в базе данных
-        cur.execute("""
-            CREATE TABLE IF NOT EXISTS de_dt_table (
-                Material TEXT,
-                Temperature FLOAT,
-                Orientation TEXT,
-                dE_dt FLOAT,
-                Tension FLOAT
-            );
-        """)
+            # Удаляем таблицу, если она уже существует
+            cur.execute(f"DROP TABLE IF EXISTS {table_name};")
 
-        # Очищаем таблицу, если она уже существует
-        cur.execute("TRUNCATE TABLE de_dt_table;")
+            # Создаем новую таблицу
+            cur.execute(f"""
+                CREATE TABLE {table_name} (
+                    "Material" TEXT,
+                    "Temperature" FLOAT,
+                    "Orientation" TEXT,
+                    "Time lapse" FLOAT,
+                    "Deformation" FLOAT,
+                    "Tension" FLOAT
+                );
+            """)
 
-        # Вставляем данные в новую таблицу
-        insert_query = """
-            INSERT INTO de_dt_table (Material, Temperature, Orientation, dE_dt, Tension)
-            VALUES (%s, %s, %s, %s, %s);
-        """
-        cur.executemany(insert_query, results)
+            # Вставляем данные в таблицу
+            insert_query = f"""
+                INSERT INTO {table_name} ("Material", "Temperature", "Orientation", "Time lapse", "Deformation", "Tension")
+                VALUES (%s, %s, %s, %s, %s, %s);
+            """
+            cur.executemany(insert_query, rows)
+
+            print(f"Таблица {table_name} успешно создана и заполнена!")
 
         # Фиксируем изменения
         conn.commit()
-        print("Новая таблица успешно создана и заполнена!")
 
     except Exception as e:
         print(f"Ошибка при выполнении операций с базой данных: {e}")
