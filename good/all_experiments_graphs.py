@@ -26,7 +26,7 @@ def get_x_y_values(config_path: str, table_name: str, material: str, orientation
     try:
         conn, cur = create_psycopg2_connection(config)
         cur.execute(
-            f'SELECT "Time_lapse", "Deformation" FROM {table_name} WHERE "Material" = %s AND "Orientation" = %s AND "Temperature" = %s',
+            f'SELECT "Time lapse", "Deformation" FROM {table_name} WHERE "Material" = %s AND "Orientation" = %s AND "Temperature" = %s',
             (material, orientation, temperature)
         )
         rows = cur.fetchall()
@@ -43,7 +43,7 @@ def get_x_y_values(config_path: str, table_name: str, material: str, orientation
 
 def plot_x_y_values(x_values, y_values, material, orientation, temperature):
     
-    plt.figure(figsize=(25, 20))
+    plt.figure(figsize=(50, 45))
     plt.plot(x_values, y_values, label=f'{material}, {orientation}, {temperature}' , linewidth=2)
     plt.xlabel('Time_lapse, hour', fontsize=20)
     plt.ylabel('Deformation, %', fontsize=20)
@@ -54,7 +54,8 @@ def plot_x_y_values(x_values, y_values, material, orientation, temperature):
     #plt.show()
     
     filename = os.path.join("graphs", f'{material}_orientation_{orientation}_temperature_{temperature}.png')
-    plt.savefig(filename)
+    #plt.savefig(filename)
+    plt.show()
     plt.close()
 
 def all_experiments_main():
@@ -67,3 +68,6 @@ def all_experiments_main():
     for material, orientation, temperature in unique_pairs:
         x_values, y_values = get_x_y_values(config_path, table_name, material, orientation, temperature)
         plot_x_y_values(x_values, y_values, material, orientation, temperature)
+
+
+all_experiments_main()

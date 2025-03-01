@@ -1,7 +1,6 @@
 from db_utils import load_config, create_psycopg2_connection
 import os
 
-
 def de_dt_materials_main():
     config_path = 'config_to_connection.json'
     config = load_config(config_path)
@@ -38,10 +37,10 @@ def de_dt_materials_main():
         for row in table1_data:
             material, temperature, orientation, time_lapse, deformation, tension = row
 
-            # Фильтруем данные по временному интервалу
+            # Фильтруем данные по строгому временному интервалу
             if material in time_intervals:
                 beginning, end = time_intervals[material]
-                if beginning <= time_lapse <= end:
+                if beginning < time_lapse < end:  # Строгое условие
                     key = (temperature, orientation)
 
                     if key not in grouped_data:
@@ -49,14 +48,33 @@ def de_dt_materials_main():
 
                     # Добавляем данные, если материал еще не был добавлен
                     if not any(item[0] == material for item in grouped_data[key]):
-                        grouped_data[key].append((
-                            material,
-                            temperature,
-                            orientation,
-                            time_lapse,
-                            deformation,
-                            tension
-                        ))
+                        # Находим все данные для материала в заданном интервале
+                        filtered_data = [
+                            r for r in table1_data
+                            if r[0] == material and beginning < r[3] < end  # Строгое условие
+                        ]
+                        if filtered_data:
+                            # Находим минимальное и максимальное время в интервале
+                            time_lapses = [r[3] for r in filtered_data]
+                            time_start = min(time_lapses)
+                            time_end = max(time_lapses)
+                            time_interval = time_end - time_start  # Точный интервал
+
+                            # Находим начальную и конечную деформацию
+                            deformation_start = filtered_data[0][4]
+                            deformation_end = filtered_data[-1][4]
+                            dE_dt = (deformation_end - deformation_start) / time_interval if time_interval != 0 else 0.0
+
+                            # Добавляем данные с расчетом dE_dt
+                            grouped_data[key].append((
+                                material,
+                                temperature,
+                                orientation,
+                                time_interval,
+                                deformation,
+                                tension,
+                                dE_dt
+                            ))
 
         # Создаем таблицы для каждой группы
         for (temperature, orientation), rows in grouped_data.items():
@@ -66,7 +84,7 @@ def de_dt_materials_main():
             # Удаляем таблицу, если она уже существует
             cur.execute(f"DROP TABLE IF EXISTS {table_name};")
 
-            # Создаем новую таблицу
+            # Создаем новую таблицу с добавлением столбца dE_dt
             cur.execute(f"""
                 CREATE TABLE {table_name} (
                     "Material" TEXT,
@@ -74,14 +92,15 @@ def de_dt_materials_main():
                     "Orientation" TEXT,
                     "Time lapse" FLOAT,
                     "Deformation" FLOAT,
-                    "Tension" FLOAT
+                    "Tension" FLOAT,
+                    "dE_dt" FLOAT
                 );
             """)
 
             # Вставляем данные в таблицу
             insert_query = f"""
-                INSERT INTO {table_name} ("Material", "Temperature", "Orientation", "Time lapse", "Deformation", "Tension")
-                VALUES (%s, %s, %s, %s, %s, %s);
+                INSERT INTO {table_name} ("Material", "Temperature", "Orientation", "Time lapse", "Deformation", "Tension", "dE_dt")
+                VALUES (%s, %s, %s, %s, %s, %s, %s);
             """
             cur.executemany(insert_query, rows)
 

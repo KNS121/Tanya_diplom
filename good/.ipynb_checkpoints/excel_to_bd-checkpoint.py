@@ -72,7 +72,7 @@ def excel_to_bd_main():
     db_manager.test_connection()
 
     # Путь к Excel-файлу
-    excel_file_path = ['FinalTableDatabase1.xlsx', 'Lengths.xlsx']
+    excel_file_path = ['FinalTableDatabase1.xlsx', 'Lengths2.xlsx']
     table_names = ['experiment_full_table', 'lengths']
     
     # Читаем данные из Excel
